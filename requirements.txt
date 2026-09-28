@@ -1,0 +1,18 @@
+# ==== 运行时核心依赖 ====
+flask>=2.0
+opencv-python>=4.6
+numpy>=1.21
+pillow>=9.0
+requests>=2.28
+
+# ==== 检测 / 姿态 / 追踪 ====
+ultralytics>=8.0
+openvino>=2023.0
+torch>=2.0
+
+# ==== 人脸识别（InsightFace）====
+insightface>=0.7
+onnxruntime-gpu>=1.15
+
+# ==== 人脸特征向量检索（FAISS）====
+faiss-cpu>=1.7
