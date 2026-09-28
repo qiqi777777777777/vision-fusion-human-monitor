@@ -1,5 +1,14 @@
 # Vision-Fusion Human Monitor
 
+![Language](https://img.shields.io/badge/Language-Python-3776AB?logo=python&logoColor=white)
+![Detection](https://img.shields.io/badge/Detection-YOLOv8-FF6C37)
+![Accel](https://img.shields.io/badge/Accel-OpenVINO-00CED1)
+![Pose](https://img.shields.io/badge/Pose-YOLOv8--pose-9cf)
+![Face](https://img.shields.io/badge/Face-InsightFace%2BFAISS-4B8BBE)
+![Web](https://img.shields.io/badge/Web-Flask-000000?logo=flask&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-Qwen2.5-blueviolet)
+![Edge](https://img.shields.io/badge/Deploy-CPU%20Edge-brightgreen)
+
 基于 **YOLOv8 + OpenVINO + InsightFace + 大模型** 的本地实时人体监控系统，支持行人检测、姿态估计、行为识别（跌倒 / 睡觉 / 玩手机）、人脸识别，并内置一个通过大模型驱动的「数字狗」智能问答助手。
 
 > 纯本地 CPU 推理为主，无需 GPU 即可运行，适合在普通电脑 / 边缘设备上部署。
