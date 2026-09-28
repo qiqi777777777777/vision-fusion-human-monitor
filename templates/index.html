@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VISION FUSION // YOLO + FACE</title>
+<style>
+:root {
+  --bg-top: #0a0f1a;
+  --bg-mid: #070b14;
+  --bg-bot: #000000;
+  --panel: rgba(18, 26, 44, 0.72);
+  --panel-border: rgba(0, 240, 255, 0.28);
+  --cyan: #00f0ff;
+  --cyan-dim: rgba(0, 240, 255, 0.12);
+  --pink: #ff2e97;
+  --pink-dim: rgba(255, 46, 151, 0.12);
+  --lime: #bfff00;
+  --green: #00ff88;
+  --text: #e6f1ff;
+  --text-dim: #7d8aa3;
+  --text-faint: #4a5568;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-bot) 100%);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 22px 30px;
+  overflow-x: hidden;
+}
+::selection { background: rgba(0, 240, 255, 0.35); }
+
+/* ============ 顶部标题栏 ============ */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.08), inset 0 0 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.brand { line-height: 1.1; }
+.brand h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  background: linear-gradient(90deg, #e6f1ff, var(--cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 22px rgba(0, 240, 255, 0.35);
+}
+.brand .sub {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  opacity: 0.85;
+  margin-top: 2px;
+}
+.top-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.addr {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: Consolas, monospace;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+.addr b { color: var(--text); font-weight: 600; }
+.cam-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--lime);
+  border: 1px solid var(--lime);
+  background: rgba(191, 255, 0, 0.06);
+  padding: 6px 14px;
+  border-radius: 999px;
+  box-shadow: 0 0 14px rgba(191, 255, 0, 0.25), inset 0 0 10px rgba(191, 255, 0, 0.08);
+  text-shadow: 0 0 8px rgba(191, 255, 0, 0.6);
+}
+.cam-online .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 8px var(--lime);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ============ 控制面板 ============ */
+.control-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.ctl-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+}
+.ctl-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctl-label::before { content: ""; width: 5px; height: 5px; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); border-radius: 1px; }
+.ctl-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* 按钮 */
+.btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  color: #04121a;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  font-family: inherit;
+}
+.btn:active { transform: scale(0.96); }
+.btn-cyan {
+  background: linear-gradient(180deg, #33f7ff, #00d4e8);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.btn-cyan:hover { filter: brightness(1.1); box-shadow: 0 0 24px rgba(0, 240, 255, 0.75); }
+.btn-pink {
+  background: linear-gradient(180deg, #ff5fb0, #f0008c);
+  box-shadow: 0 0 16px rgba(255, 46, 151, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.btn-pink:hover { filter: brightness(1.1); box-shadow: 0 0 24px rgba(255, 46, 151, 0.75); }
+.btn-green {
+  background: linear-gradient(180deg, #7dffa8, #00c853);
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.btn-green:hover { filter: brightness(1.1); box-shadow: 0 0 24px rgba(0, 255, 136, 0.75); }
+.btn.active {
+  color: #04121a;
+  background: linear-gradient(180deg, #33f7ff, #00d4e8);
+  border-color: var(--cyan);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.6);
+}
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+  min-width: 52px;
+  text-align: center;
+}
+.btn-ghost:hover { border-color: var(--cyan); color: var(--cyan); }
+.btn-ghost.active { border-color: var(--cyan); }
+
+/* 滑块 */
+.slider-wrap { flex: 1; min-width: 130px; display: flex; align-items: center; gap: 10px; }
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--cyan), #1e5a6b);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--cyan);
+  border: 2px solid #04121a;
+  box-shadow: 0 0 10px var(--cyan);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--cyan); border: 2px solid #04121a;
+  box-shadow: 0 0 10px var(--cyan); cursor: pointer;
+}
+.conf-val {
+  font-family: Consolas, monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  min-width: 46px;
+  text-align: right;
+}
+.face-ctx {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: Consolas, monospace;
+}
+
+/* 按钮组 */
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-group .btn { padding: 6px 11px; font-size: 12px; min-width: 44px; }
+
+/* ============ 视频区 ============ */
+.video-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  transition: grid-template-columns 0.3s ease;
+}
+.video-section.dw-s   { grid-template-columns: 1fr 1fr; }
+.video-section.dw-m   { grid-template-columns: 3fr 2fr; }
+.video-section.dw-l   { grid-template-columns: 2fr 3fr; }
+.video-section.dw-wide{ grid-template-columns: 1fr; }
+
+.stream-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stream-box {
+  position: relative;
+  background: #02040a;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.10), inset 0 0 30px rgba(0, 0, 0, 0.6);
+}
+.stream-box img.main {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #02040a;
+  filter: saturate(1.05) contrast(1.02);
+}
+.stream-box .no-signal {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; letter-spacing: 3px; color: var(--text-faint);
+  font-family: Consolas, monospace;
+}
+.stream-box .no-signal.hidden { display: none; }
+
+/* 角标 */
+.corner { position: absolute; font-size: 11px; font-weight: 700; letter-spacing: 1px; z-index: 2; }
+.corner.tl {
+  top: 10px; left: 10px;
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(0, 255, 136, 0.5);
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+.corner.tl .gdot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.corner.tr {
+  top: 10px; right: 10px;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+.corner.br {
+  bottom: 10px; right: 10px;
+  color: rgba(230, 241, 255, 0.75);
+  font-size: 10px;
+  letter-spacing: 2px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 240, 255, 0.25);
+}
+.raw-live {
+  position: absolute;
+  top: 38px; right: 10px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #1a1a00;
+  background: linear-gradient(180deg, #ffe600, #ffcc00);
+  border: 1px solid #b3a300;
+  padding: 2px 8px;
+  border-radius: 4px;
+  box-shadow: 0 0 12px rgba(255, 230, 0, 0.4);
+}
+
+/* TILE 缩略图 */
+.tiles-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.tile {
+  position: relative;
+  background: #04060e;
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 9px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+.tile img {
+  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.tile .t-label {
+  position: absolute; top: 5px; left: 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 1px;
+  color: var(--cyan);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 6px; border-radius: 4px;
+  text-shadow: 0 0 6px rgba(0, 240, 255, 0.8);
+}
+.tile .t-idx {
+  position: absolute; bottom: 5px; right: 6px;
+  font-size: 8px; font-family: Consolas, monospace;
+  color: var(--text-faint);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* ============ 底部状态条 ============ */
+.status-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-family: Consolas, monospace;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.35);
+  flex-wrap: wrap;
+}
+.status-item .conn { display: flex; align-items: center; gap: 7px; color: var(--green); font-weight: 700; letter-spacing: 1px; }
+.status-item .conn .gdot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-item .meta { color: var(--text-dim); }
+.status-item .det { color: var(--text); }
+.status-item .det.hit { color: var(--lime); text-shadow: 0 0 10px rgba(191, 255, 0, 0.5); }
+.status-item .face-num { color: var(--text-dim); }
+.status-item .face-num.hit { color: var(--pink); text-shadow: 0 0 10px rgba(255, 46, 151, 0.6); }
+.status-item .sep { color: rgba(255, 255, 255, 0.15); }
+
+/* ============ 人脸库面板 ============ */
+.face-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.face-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+}
+.face-card h3 {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.face-card h3::before { content: ""; width: 5px; height: 5px; background: var(--pink); box-shadow: 0 0 6px var(--pink); border-radius: 1px; }
+.reg-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.reg-row input[type="text"] {
+  flex: 1;
+  min-width: 140px;
+  padding: 9px 12px;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+.reg-row input[type="text"]:focus { border-color: var(--cyan); box-shadow: 0 0 10px rgba(0, 240, 255, 0.3); }
+.file-btn {
+  display: inline-block;
+  padding: 9px 14px;
+  border: 1px dashed rgba(0, 240, 255, 0.45);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--cyan);
+  cursor: pointer;
+  background: rgba(0, 240, 255, 0.05);
+  white-space: nowrap;
+}
+.file-btn:hover { background: rgba(0, 240, 255, 0.12); }
+.file-btn input { display: none; }
+.reg-msg { margin-top: 10px; font-size: 13px; line-height: 1.6; min-height: 18px; }
+.reg-msg.ok { color: var(--green); }
+.reg-msg.err { color: var(--pink); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-block;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: var(--cyan);
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.chip b { color: var(--text); font-weight: 700; margin-right: 4px; }
+.face-meta { margin-top: 10px; font-size: 12px; color: var(--text-dim); font-family: Consolas, monospace; }
+
+/* ============ 右下角水印 ============ */
+.watermark {
+  position: fixed;
+  right: 26px; bottom: 12px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: rgba(125, 138, 163, 0.5);
+  font-family: Consolas, monospace;
+  text-align: right;
+  user-select: none;
+  z-index: 99;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 1100px) {
+  .video-section, .status-bar, .face-panel { grid-template-columns: 1fr; }
+  .video-section.dw-m, .video-section.dw-l, .video-section.dw-wide { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== 顶部标题栏 ==================== -->
+<header class="topbar">
+  <div class="brand">
+    <h1>VISION FUSION</h1>
+    <div class="sub">YOLOv8 GUARD · INSIGHTFACE ID · RTSP DUAL CAM</div>
+  </div>
+  <div class="top-right">
+    <div class="addr"><b id="addrText">--</b>:5000 &nbsp;·&nbsp; 局域网</div>
+    <div class="cam-online"><span class="dot"></span>CAMERA ONLINE</div>
+  </div>
+</header>
+
+<!-- ==================== 控制面板 ==================== -->
+<section class="control-panel">
+  <!-- YOLO ENGINE -->
+  <div class="ctl-card">
+    <div class="ctl-label">YOLO ENGINE</div>
+    <div class="ctl-body">
+      <button id="btnEnable" class="btn btn-cyan" onclick="toggleYolo()">▶ ENABLE YOLO</button>
+      <button class="btn btn-pink" onclick="resetYolo()">RESET</button>
+    </div>
+  </div>
+
+  <!-- FACE ENGINE -->
+  <div class="ctl-card">
+    <div class="ctl-label">FACE ENGINE / 人脸识别</div>
+    <div class="ctl-body">
+      <button id="btnFace" class="btn btn-green" onclick="toggleFace()">▶ ENABLE FACE</button>
+      <span class="face-ctx" id="faceCtx">--</span>
+    </div>
+  </div>
+
+  <!-- CONFIDENCE -->
+  <div class="ctl-card">
+    <div class="ctl-label">CONFIDENCE / 置信度</div>
+    <div class="ctl-body">
+      <div class="slider-wrap">
+        <input type="range" id="confSlider" min="0.10" max="0.90" step="0.05" value="0.35">
+        <span class="conf-val" id="confVal">0.35</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- INFERENCE SIZE -->
+  <div class="ctl-card">
+    <div class="ctl-label">INFERENCE SIZE / 推理尺寸</div>
+    <div class="ctl-body btn-group" id="sizeGroup">
+      <button class="btn btn-ghost" data-size="320" onclick="setSize(this)">320</button>
+      <button class="btn btn-ghost" data-size="416" onclick="setSize(this)">416</button>
+      <button class="btn btn-ghost active" data-size="640" onclick="setSize(this)">640</button>
+      <button class="btn btn-ghost" data-size="768" onclick="setSize(this)">768</button>
+      <button class="btn btn-ghost" data-size="960" onclick="setSize(this)">960</button>
+    </div>
+  </div>
+
+  <!-- DUAL WINDOW -->
+  <div class="ctl-card">
+    <div class="ctl-label">DUAL WINDOW / 双路窗口</div>
+    <div class="ctl-body btn-group" id="dwGroup">
+      <button class="btn btn-ghost active" data-dw="s" onclick="setDw(this)">S</button>
+      <button class="btn btn-ghost" data-dw="m" onclick="setDw(this)">M</button>
+      <button class="btn btn-ghost" data-dw="l" onclick="setDw(this)">L</button>
+      <button class="btn btn-ghost" data-dw="wide" onclick="setDw(this)">WIDE</button>
+    </div>
+  </div>
+
+  <!-- BEHAVIOR / 行为检测 -->
+  <div class="ctl-card">
+    <div class="ctl-label">BEHAVIOR / 行为检测</div>
+    <div class="ctl-body">
+      <button id="btnPhone" class="btn btn-green" data-name="玩手机" onclick="togglePhone()">▶ 玩手机</button>
+      <button id="btnSleep" class="btn btn-pink" data-name="睡觉" onclick="toggleSleep()">▶ 睡觉</button>
+    </div>
+    <div class="ctl-body" style="margin-top:8px;">
+      <span class="slider-wrap">
+        <input type="range" id="sleepSec" min="5" max="120" step="1" value="15">
+        <span class="conf-val" id="sleepSecVal">15s</span>
+      </span>
+    </div>
+    <div class="ctl-body" style="margin-top:6px;">
+      <span class="slider-wrap">
+        <input type="range" id="sleepAspect" min="0.80" max="2.00" step="0.05" value="1.15">
+        <span class="conf-val" id="sleepAspectVal">1.15</span>
+      </span>
+    </div>
+    <div class="face-ctx" style="margin-top:7px;">静止秒数越高越不容易误报 · 宽高比越低越灵敏</div>
+  </div>
+
+  <!-- POSE / 姿态行为识别 -->
+  <div class="ctl-card">
+    <div class="ctl-label">POSE / 姿态行为识别(站·坐·举手·走·跑·跌倒·握手)</div>
+    <div class="ctl-body">
+      <button id="btnPose" class="btn btn-cyan" data-name="行为识别" onclick="togglePose()">■ 行为识别</button>
+      <span class="face-ctx" id="poseCtx">--</span>
+      <span class="conf-val" id="poseNum" style="min-width:56px;">0 人</span>
+    </div>
+    <div class="ctl-body" style="margin-top:8px;">
+      <span class="face-ctx" style="font-size:12px;color:var(--cyan);">走&gt;</span>
+      <span class="slider-wrap">
+        <input type="range" id="walkSpd" min="5" max="120" step="1" value="25">
+        <span class="conf-val" id="walkSpdVal">25</span>
+      </span>
+    </div>
+    <div class="ctl-body" style="margin-top:6px;">
+      <span class="face-ctx" style="font-size:12px;color:var(--pink);">跑&gt;</span>
+      <span class="slider-wrap">
+        <input type="range" id="runSpd" min="30" max="200" step="5" value="60">
+        <span class="conf-val" id="runSpdVal">60</span>
+      </span>
+    </div>
+    <div class="face-ctx" style="margin-top:7px;">速度单位 px/s · 超走阈值标"走"，超跑阈值标"跑"</div>
+  </div>
+</section>
+
+<!-- ==================== 视频区 ==================== -->
+<section class="video-section dw-s" id="videoSection">
+
+  <!-- cam1 -->
+  <div class="stream-col">
+    <div class="stream-box">
+      <img id="cam1img" class="main" alt="cam1">
+      <div class="no-signal" id="cam1ns">WAITING FOR STREAM…</div>
+      <div class="corner tl"><span class="gdot"></span>cam1</div>
+      <div class="corner tr">CH-01</div>
+      <div class="raw-live">RAW / LIVE</div>
+      <div class="corner br">Camera 01</div>
+    </div>
+    <div class="tiles-row">
+      <div class="tile">
+        <img id="cam1t0" alt="tile0">
+        <span class="t-label">左上</span>
+        <span class="t-idx">CAM1 · 0</span>
+      </div>
+      <div class="tile">
+        <img id="cam1t1" alt="tile1">
+        <span class="t-label">右上</span>
+        <span class="t-idx">CAM1 · 1</span>
+      </div>
+      <div class="tile">
+        <img id="cam1t2" alt="tile2">
+        <span class="t-label">左下</span>
+        <span class="t-idx">CAM1 · 2</span>
+      </div>
+      <div class="tile">
+        <img id="cam1t3" alt="tile3">
+        <span class="t-label">右下</span>
+        <span class="t-idx">CAM1 · 3</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- cam2 -->
+  <div class="stream-col">
+    <div class="stream-box">
+      <img id="cam2img" class="main" alt="cam2">
+      <div class="no-signal" id="cam2ns">WAITING FOR STREAM…</div>
+      <div class="corner tl"><span class="gdot"></span>cam2</div>
+      <div class="corner tr">CH-02</div>
+      <div class="raw-live">RAW / LIVE</div>
+      <div class="corner br">Camera 02</div>
+    </div>
+    <div class="tiles-row">
+      <div class="tile">
+        <img id="cam2t0" alt="tile0">
+        <span class="t-label">左上</span>
+        <span class="t-idx">CAM2 · 0</span>
+      </div>
+      <div class="tile">
+        <img id="cam2t1" alt="tile1">
+        <span class="t-label">右上</span>
+        <span class="t-idx">CAM2 · 1</span>
+      </div>
+      <div class="tile">
+        <img id="cam2t2" alt="tile2">
+        <span class="t-label">左下</span>
+        <span class="t-idx">CAM2 · 2</span>
+      </div>
+      <div class="tile">
+        <img id="cam2t3" alt="tile3">
+        <span class="t-label">右下</span>
+        <span class="t-idx">CAM2 · 3</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 人脸库管理 ==================== -->
+<section class="face-panel">
+  <div class="face-card">
+    <h3>注册新用户 / REGISTER</h3>
+    <div class="reg-row">
+      <input type="text" id="name" placeholder="输入姓名，例如：张三" maxlength="20">
+      <label class="file-btn">
+        选择照片
+        <input type="file" id="fileA" accept="image/*">
+      </label>
+      <button class="btn btn-green" id="btnReg">注册</button>
+    </div>
+    <div class="reg-msg" id="msgReg"></div>
+    <div class="face-meta">上传单人正面照效果最佳 · 特征写入 face_db.npz · 识别节流 1s/路</div>
+  </div>
+  <div class="face-card">
+    <h3>人脸库 / DATABASE</h3>
+    <div class="chips" id="userList">加载中...</div>
+    <div class="face-meta" id="faceMeta">识别引擎：--</div>
+  </div>
+</section>
+
+<!-- ==================== 底部状态条 ==================== -->
+<section class="status-bar">
+  <div class="status-item">
+    <span class="conn"><span class="gdot"></span>CONNECTED</span>
+    <span class="meta">FPS≈<span id="fps1">--</span></span>
+    <span class="sep">|</span>
+    <span class="det" id="det1">DETECT: --</span>
+    <span class="sep">|</span>
+    <span class="face-num" id="face1">FACE: --</span>
+  </div>
+  <div class="status-item">
+    <span class="conn"><span class="gdot"></span>CONNECTED</span>
+    <span class="meta">FPS≈<span id="fps2">--</span></span>
+    <span class="sep">|</span>
+    <span class="det" id="det2">DETECT: --</span>
+    <span class="sep">|</span>
+    <span class="face-num" id="face2">FACE: --</span>
+  </div>
+</section>
+
+<!-- ==================== 数字狗 AI 问答 ==================== -->
+<section class="face-panel" style="margin-top:14px;">
+  <div class="face-card">
+    <h3>数字狗 AI 助手 / ASK</h3>
+    <div class="reg-row">
+      <input type="text" id="aiQ" placeholder="问数字狗：现在画面里有几个人？" maxlength="120">
+      <button class="btn btn-green" id="btnAsk">发送</button>
+    </div>
+    <div class="reg-msg" id="msgAsk"></div>
+    <div class="ai-reply" id="aiReply"
+         style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.4);border:1px solid var(--panel-border);border-radius:10px;font-size:13px;line-height:1.6;min-height:24px;color:var(--text);white-space:pre-wrap;">
+      数字狗随时待命 —— 它能看到两个摄像头的现场并回答你。
+    </div>
+    <div class="face-meta">基于当前监控现场实时回答 · 问它人数、人脸、行为、异常都可以</div>
+  </div>
+</section>
+
+<!-- ==================== 右下角水印 ==================== -->
+<div class="watermark">VISION FUSION // YOLO + FACE LOCAL MONITOR</div>
+
+<script>
+(function () {
+  'use strict';
+
+  try {
+    document.getElementById('addrText').textContent = window.location.hostname;
+  } catch (e) { /* ignore */ }
+
+  // ==================== MJPEG 视频流挂载（主画面 + TILE） ====================
+  function mountImg(imgId, url, nsId) {
+    var img = document.getElementById(imgId);
+    var ns = nsId ? document.getElementById(nsId) : null;
+    if (img.dataset.bound === '1') return;
+    img.dataset.bound = '1';
+    img.onload = function () { if (ns) ns.classList.add('hidden'); };
+    img.onerror = function () {
+      if (ns) ns.classList.remove('hidden');
+      img.removeAttribute('src');
+      img.dataset.bound = '';
+      setTimeout(function () { mountImg(imgId, url, nsId); }, 3000);
+    };
+    img.src = url;
+  }
+  mountImg('cam1img', '/cam1.mjpg', 'cam1ns');
+  mountImg('cam2img', '/cam2.mjpg', 'cam2ns');
+  ['cam1', 'cam2'].forEach(function (cam) {
+    for (var i = 0; i < 4; i++) {
+      (function (camId, idx) {
+        var img = document.getElementById(camId + 't' + idx);
+        var refresh = function () {
+          img.src = '/' + camId + '_tile' + idx + '.mjpg?_=' + Date.now();
+        };
+        refresh();
+        setInterval(refresh, 1000);
+      })(cam, i);
+    }
+  });
+
+  // ==================== /status 轮询 ====================
+  function pollStatus() {
+    fetch('/status', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        document.getElementById('fps1').textContent = (s.cam1_fps || 0).toFixed(1);
+        document.getElementById('fps2').textContent = (s.cam2_fps || 0).toFixed(1);
+        var d1 = document.getElementById('det1');
+        var d2 = document.getElementById('det2');
+        d1.textContent = fmtDet(s.cam1_det);
+        d2.textContent = fmtDet(s.cam2_det);
+        d1.classList.toggle('hit', (s.cam1_det || 0) > 0);
+        d2.classList.toggle('hit', (s.cam2_det || 0) > 0);
+        var f1 = document.getElementById('face1');
+        var f2 = document.getElementById('face2');
+        f1.textContent = 'FACE: ' + (s.cam1_faces || 0);
+        f2.textContent = 'FACE: ' + (s.cam2_faces || 0);
+        f1.classList.toggle('hit', (s.cam1_faces || 0) > 0);
+        f2.classList.toggle('hit', (s.cam2_faces || 0) > 0);
+        document.getElementById('faceCtx').textContent = s.face_ctx || '--';
+        document.getElementById('faceMeta').textContent =
+          '识别引擎：' + (s.face_ctx || '--') + ' · 库内 ' + (s.user_count || 0) + ' 人';
+        document.getElementById('poseCtx').textContent =
+          (s.pose_ctx || '--') + (s.enable_pose ? '' : ' / 关闭');
+        var pn = (s.cam1_poses || 0) + (s.cam2_poses || 0);
+        document.getElementById('poseNum').textContent = pn + ' 人';
+        syncPanel(s);
+      })
+      .catch(function () { /* 网络暂时不可用，下一轮再试 */ });
+  }
+  function fmtDet(n) {
+    n = n || 0;
+    return n > 0 ? 'DETECT: ' + n + ' TARGET' + (n > 1 ? 'S' : '') : 'DETECT: NO TARGET';
+  }
+  setInterval(pollStatus, 2000);
+  pollStatus();
+
+  // ==================== 控制面板同步 ====================
+  var slider = document.getElementById('confSlider');
+  var confVal = document.getElementById('confVal');
+  var btnEnable = document.getElementById('btnEnable');
+  var btnFace = document.getElementById('btnFace');
+  var btnPhone = document.getElementById('btnPhone');
+  var btnSleep = document.getElementById('btnSleep');
+  var sleepSec = document.getElementById('sleepSec');
+  var sleepSecVal = document.getElementById('sleepSecVal');
+  var sleepAspect = document.getElementById('sleepAspect');
+  var sleepAspectVal = document.getElementById('sleepAspectVal');
+  var btnPose = document.getElementById('btnPose');
+  var walkSpd = document.getElementById('walkSpd');
+  var walkSpdVal = document.getElementById('walkSpdVal');
+  var runSpd = document.getElementById('runSpd');
+  var runSpdVal = document.getElementById('runSpdVal');
+  function paintToggle(btn, on, onBg) {
+    btn.textContent = (on ? '■ ' : '▶ ') + btn.dataset.name;
+    if (on) {
+      btn.style.background = onBg;
+      btn.style.color = '#04121a';
+      btn.style.borderColor = 'transparent';
+    } else {
+      btn.style.background = 'rgba(255,255,255,0.05)';
+      btn.style.color = '#7d8aa3';
+      btn.style.borderColor = '#7d8aa3';
+    }
+  }
+  function syncPanel(s) {
+    if (typeof s.conf === 'number') {
+      slider.value = s.conf;
+      confVal.textContent = s.conf.toFixed(2);
+    }
+    if (typeof s.enable_yolo === 'boolean') {
+      btnEnable.textContent = s.enable_yolo ? '■ ENABLE YOLO' : '▶ ENABLE YOLO';
+      btnEnable.style.background = s.enable_yolo
+        ? 'linear-gradient(180deg, #33f7ff, #00d4e8)'
+        : 'rgba(0, 240, 255, 0.10)';
+      btnEnable.style.color = s.enable_yolo ? '#04121a' : '#00f0ff';
+      btnEnable.style.borderColor = s.enable_yolo ? 'transparent' : '#00f0ff';
+    }
+    if (typeof s.enable_face === 'boolean') {
+      btnFace.textContent = s.enable_face ? '■ ENABLE FACE' : '▶ ENABLE FACE';
+      btnFace.style.background = s.enable_face
+        ? 'linear-gradient(180deg, #7dffa8, #00c853)'
+        : 'rgba(0, 255, 136, 0.10)';
+      btnFace.style.color = s.enable_face ? '#04121a' : '#00ff88';
+      btnFace.style.borderColor = s.enable_face ? 'transparent' : '#00ff88';
+    }
+    if (typeof s.enable_phone === 'boolean') {
+      paintToggle(btnPhone, s.enable_phone,
+        'linear-gradient(180deg, #7dffa8, #00c853)');
+    }
+    if (typeof s.enable_sleep === 'boolean') {
+      paintToggle(btnSleep, s.enable_sleep,
+        'linear-gradient(180deg, #ff5fb0, #f0008c)');
+    }
+    if (typeof s.enable_pose === 'boolean') {
+      paintToggle(btnPose, s.enable_pose,
+        'linear-gradient(180deg, #33f7ff, #00d4e8)');
+    }
+    if (typeof s.walk_speed === 'number') {
+      walkSpd.value = s.walk_speed;
+      walkSpdVal.textContent = s.walk_speed.toFixed(0);
+    }
+    if (typeof s.run_speed === 'number') {
+      runSpd.value = s.run_speed;
+      runSpdVal.textContent = s.run_speed.toFixed(0);
+    }
+    if (typeof s.sleep_seconds === 'number') {
+      sleepSec.value = s.sleep_seconds;
+      sleepSecVal.textContent = s.sleep_seconds.toFixed(0) + 's';
+    }
+    if (typeof s.sleep_aspect === 'number') {
+      sleepAspect.value = s.sleep_aspect;
+      sleepAspectVal.textContent = s.sleep_aspect.toFixed(2);
+    }
+  }
+
+  // ==================== /set_param POST ====================
+  function postParam(payload) {
+    return fetch('/set_param', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(function () { /* ignore transient errors */ });
+  }
+
+  window.toggleYolo = function () {
+    var next = btnEnable.textContent.indexOf('■') === 0 ? false : true;
+    btnEnable.textContent = next ? '■ ENABLE YOLO' : '▶ ENABLE YOLO';
+    btnEnable.style.background = next
+      ? 'linear-gradient(180deg, #33f7ff, #00d4e8)'
+      : 'rgba(0, 240, 255, 0.10)';
+    btnEnable.style.color = next ? '#04121a' : '#00f0ff';
+    btnEnable.style.borderColor = next ? 'transparent' : '#00f0ff';
+    postParam({ enable_yolo: next });
+  };
+
+  window.toggleFace = function () {
+    var next = btnFace.textContent.indexOf('■') === 0 ? false : true;
+    btnFace.textContent = next ? '■ ENABLE FACE' : '▶ ENABLE FACE';
+    btnFace.style.background = next
+      ? 'linear-gradient(180deg, #7dffa8, #00c853)'
+      : 'rgba(0, 255, 136, 0.10)';
+    btnFace.style.color = next ? '#04121a' : '#00ff88';
+    btnFace.style.borderColor = next ? 'transparent' : '#00ff88';
+    postParam({ enable_face: next });
+  };
+
+  window.resetYolo = function () {
+    slider.value = 0.35;
+    confVal.textContent = '0.35';
+    postParam({ conf: 0.35 });
+  };
+
+  var confTimer = null;
+  slider.addEventListener('input', function () {
+    var v = parseFloat(slider.value);
+    confVal.textContent = v.toFixed(2);
+    clearTimeout(confTimer);
+    confTimer = setTimeout(function () { postParam({ conf: v }); }, 250);
+  });
+
+  window.setSize = function (btn) {
+    var group = document.getElementById('sizeGroup');
+    Array.prototype.forEach.call(group.children, function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    postParam({ tile_size: parseInt(btn.dataset.size, 10) });
+  };
+
+  window.setDw = function (btn) {
+    var group = document.getElementById('dwGroup');
+    Array.prototype.forEach.call(group.children, function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    var section = document.getElementById('videoSection');
+    section.className = 'video-section dw-' + btn.dataset.dw;
+  };
+
+  // ==================== 行为检测开关与滑块 ====================
+  window.togglePhone = function () {
+    var next = btnPhone.textContent.indexOf('■') !== 0;
+    postParam({ enable_phone: next });
+    paintToggle(btnPhone, next, 'linear-gradient(180deg, #7dffa8, #00c853)');
+  };
+  window.toggleSleep = function () {
+    var next = btnSleep.textContent.indexOf('■') !== 0;
+    postParam({ enable_sleep: next });
+    paintToggle(btnSleep, next, 'linear-gradient(180deg, #ff5fb0, #f0008c)');
+  };
+  window.togglePose = function () {
+    var next = btnPose.textContent.indexOf('■') !== 0;
+    postParam({ enable_pose: next });
+    paintToggle(btnPose, next, 'linear-gradient(180deg, #33f7ff, #00d4e8)');
+  };
+  var secTimer = null;
+  sleepSec.addEventListener('input', function () {
+    sleepSecVal.textContent = sleepSec.value + 's';
+    clearTimeout(secTimer);
+    secTimer = setTimeout(function () { postParam({ sleep_seconds: parseInt(sleepSec.value, 10) }); }, 250);
+  });
+  var aspectTimer = null;
+  sleepAspect.addEventListener('input', function () {
+    sleepAspectVal.textContent = parseFloat(sleepAspect.value).toFixed(2);
+    clearTimeout(aspectTimer);
+    aspectTimer = setTimeout(function () { postParam({ sleep_aspect: parseFloat(sleepAspect.value) }); }, 250);
+  });
+  var walkTimer = null;
+  walkSpd.addEventListener('input', function () {
+    walkSpdVal.textContent = walkSpd.value;
+    clearTimeout(walkTimer);
+    walkTimer = setTimeout(function () { postParam({ walk_speed: parseInt(walkSpd.value, 10) }); }, 250);
+  });
+  var runTimer = null;
+  runSpd.addEventListener('input', function () {
+    runSpdVal.textContent = runSpd.value;
+    clearTimeout(runTimer);
+    runTimer = setTimeout(function () { postParam({ run_speed: parseInt(runSpd.value, 10) }); }, 250);
+  });
+
+  // ==================== 人脸注册 ====================
+  var fileA = document.getElementById('fileA');
+  var fileBadge = document.querySelector('.file-btn');
+  fileA.addEventListener('change', function () {
+    fileBadge.textContent = fileA.files[0] ? fileA.files[0].name : '选择照片';
+  });
+
+  document.getElementById('btnReg').addEventListener('click', function () {
+    var name = document.getElementById('name').value.trim();
+    var msg = document.getElementById('msgReg');
+    if (!name) { msg.className = 'reg-msg err'; msg.textContent = '请先输入姓名'; return; }
+    if (!fileA.files[0]) { msg.className = 'reg-msg err'; msg.textContent = '请选择一张正面照片'; return; }
+    var btn = document.getElementById('btnReg');
+    btn.disabled = true;
+    msg.className = 'reg-msg';
+    msg.textContent = '注册中，请稍候...';
+    var fd = new FormData();
+    fd.append('file', fileA.files[0]);
+    fd.append('name', name);
+    fetch('/api/register', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.ok) {
+          msg.className = 'reg-msg ok';
+          msg.textContent = '注册成功：' + j.name + '（共 ' + j.emb_count + ' 条特征）';
+          document.getElementById('name').value = '';
+          fileA.value = ''; fileBadge.textContent = '选择照片';
+          loadUsers();
+        } else {
+          msg.className = 'reg-msg err';
+          msg.textContent = j.error || '注册失败';
+        }
+      })
+      .catch(function (e) {
+        msg.className = 'reg-msg err';
+        msg.textContent = '请求失败：' + e.message;
+      })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  // ==================== 人脸库列表 ====================
+  function loadUsers() {
+    fetch('/api/users', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var u = j.users || [];
+        document.getElementById('userList').innerHTML = u.length
+          ? u.map(function (x) { return '<span class="chip"><b>' + x.name + '</b>' + x.count + ' 特征</span>'; }).join('')
+          : '<span class="chip">库内暂无人员，可先注册</span>';
+      })
+      .catch(function () { /* ignore */ });
+  }
+  loadUsers();
+  setInterval(loadUsers, 15000);
+
+  // ==================== 数字狗 AI 问答 ====================
+  function askAI() {
+    var q = document.getElementById('aiQ').value.trim();
+    var msg = document.getElementById('msgAsk');
+    var reply = document.getElementById('aiReply');
+    if (!q) { msg.className = 'reg-msg err'; msg.textContent = '先输入问题'; return; }
+    var btn = document.getElementById('btnAsk');
+    btn.disabled = true;
+    msg.className = 'reg-msg';
+    msg.textContent = '数字狗思考中...';
+    reply.textContent = '';
+    fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.ok) {
+          msg.className = 'reg-msg ok';
+          msg.textContent = '回答';
+          reply.textContent = j.answer;
+        } else {
+          msg.className = 'reg-msg err';
+          msg.textContent = j.error || '请求失败';
+        }
+      })
+      .catch(function (e) {
+        msg.className = 'reg-msg err';
+        msg.textContent = '请求失败：' + e.message;
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+  document.getElementById('btnAsk').addEventListener('click', askAI);
+  document.getElementById('aiQ').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') askAI();
+  });
+
+  pollStatus();
+})();
+</script>
+</body>
+</html>

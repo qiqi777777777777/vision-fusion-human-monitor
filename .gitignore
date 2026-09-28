@@ -1,0 +1,34 @@
+# ===== 密钥与隐私（禁止进仓库）=====
+siliconflow.key
+.env
+*.key
+
+# ===== 真人的人脸数据库（涉及个人隐私，绝不公开）=====
+数据库/
+face_db.npz
+*.npz
+
+# ===== 模型权重与下载目录 =====
+models/
+model_download/
+Ultralytics/
+*.pt
+*.onnx
+*.bin
+*.xml
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# ===== IDE / 编辑器 =====
+.idea/
+.vscode/
+
+# ===== 日志与临时文件 =====
+*.log
+*.tmp
